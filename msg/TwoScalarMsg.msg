@@ -1,0 +1,3 @@
+string id
+float32 val1
+float32 val2
