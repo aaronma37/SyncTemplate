@@ -15,7 +15,7 @@ sync_flag_pub =rospy.Publisher('/sync_flag', Int32, queue_size=100)
 class Master:
 	def __init__(self):
             self.slaves={}
-            for i in range(100):
+            for i in range(10):
                 try:
                     s=rospy.get_param("~slave"+str(i))
                     self.slaves[s]=True
