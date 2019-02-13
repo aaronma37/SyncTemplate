@@ -1,0 +1,88 @@
+<launch>
+<node pkg="SyncTemplate" type="master.py" name="master_node" output="screen">
+	<param name="~slave1" type="string" value="1"/>
+	<param name="~slave2" type="string" value="2"/>
+	<param name="~slave3" type="string" value="3"/>
+	<param name="~slave4" type="string" value="4"/>
+	<param name="~slave5" type="string" value="5"/>
+	<param name="~slave6" type="string" value="6"/>
+	<param name="~slave7" type="string" value="7"/>
+	<param name="~slave8" type="string" value="8"/>
+	<param name="~slave9" type="string" value="9"/>
+
+</node>
+
+<group ns="1">
+	<node pkg="SyncTemplate" type="slave.py" name="slave" output="screen">
+		<param name="~ident" type="string" value="1"/>
+		<param name="~incoming1" type="string" value="2"/>
+		<param name="~incoming2" type="string" value="9"/>
+	</node>
+</group>
+
+<group ns="2">
+	<node pkg="SyncTemplate" type="slave.py" name="slave" output="screen">
+		<param name="~ident" type="string" value="2"/>
+		<param name="~incoming1" type="string" value="1"/>
+		<param name="~incoming2" type="string" value="3"/>
+	</node>
+</group>
+
+<group ns="3">
+	<node pkg="SyncTemplate" type="slave.py" name="slave" output="screen">
+		<param name="~ident" type="string" value="3"/>
+		<param name="~incoming1" type="string" value="2"/>
+		<param name="~incoming2" type="string" value="4"/>
+	</node>
+</group>
+
+<group ns="4">
+	<node pkg="SyncTemplate" type="slave.py" name="slave" output="screen">
+		<param name="~ident" type="string" value="4"/>
+		<param name="~incoming1" type="string" value="3"/>
+		<param name="~incoming2" type="string" value="5"/>
+	</node>
+</group>
+
+<group ns="5">
+	<node pkg="SyncTemplate" type="slave.py" name="slave" output="screen">
+		<param name="~ident" type="string" value="5"/>
+		<param name="~incoming1" type="string" value="4"/>
+		<param name="~incoming2" type="string" value="6"/>
+	</node>
+</group>
+
+<group ns="6">
+	<node pkg="SyncTemplate" type="slave.py" name="slave" output="screen">
+		<param name="~ident" type="string" value="6"/>
+		<param name="~incoming1" type="string" value="5"/>
+		<param name="~incoming2" type="string" value="7"/>
+	</node>
+</group>
+
+<group ns="7">
+	<node pkg="SyncTemplate" type="slave.py" name="slave" output="screen">
+		<param name="~ident" type="string" value="7"/>
+		<param name="~incoming1" type="string" value="8"/>
+		<param name="~incoming2" type="string" value="6"/>
+	</node>
+</group>
+
+<group ns="8">
+	<node pkg="SyncTemplate" type="slave.py" name="slave" output="screen">
+		<param name="~ident" type="string" value="8"/>
+		<param name="~incoming1" type="string" value="9"/>
+		<param name="~incoming2" type="string" value="7"/>
+	</node>
+</group>
+
+<group ns="9">
+	<node pkg="SyncTemplate" type="slave.py" name="slave" output="screen">
+		<param name="~ident" type="string" value="9"/>
+		<param name="~incoming1" type="string" value="1"/>
+		<param name="~incoming2" type="string" value="8"/>
+	</node>
+</group>
+
+
+</launch>

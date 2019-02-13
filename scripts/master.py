@@ -26,6 +26,7 @@ class Master:
             for s in self.slaves.keys():
                 rospy.Subscriber(s+'/ack', AckMsg, self.sentCB)
             time.sleep(3)
+            self.check_sum=None
             self.send_flag()
 
         def sentCB(self,msg):
@@ -36,20 +37,31 @@ class Master:
                 self.send_flag()
 
         def check_all_sent(self):
+            # for k,v in self.slaves.items():
+            #   print k,v
             for v in self.slaves.values():
-                if v ==False:
+                if v == False:
                     return False
+
             return True
 
         def send_flag(self):
-            for v in self.slaves.values():
-                v=False
-            check_sum=Int32()
-            check_sum.data=random.randint(0,10000)
-            sync_flag_pub.publish(check_sum)
+            # time.sleep(1)
+            for k,v in self.slaves.items():
+                self.slaves[k]=False
+
+            # for k,v in self.slaves.items():
+            #   print k,v,'after'
+            self.check_sum=Int32()
+            self.check_sum.data=random.randint(0,10000)
+            self.pub()
+
+        def pub(self):
+            sync_flag_pub.publish(self.check_sum)
 
         def run(self):
             while not rospy.is_shutdown():
+                self.pub()
                 time.sleep(1)
 
 def main(args):

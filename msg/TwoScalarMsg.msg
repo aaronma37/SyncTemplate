@@ -1,3 +1,4 @@
 string id
-float32 val1
-float32 val2
+int32 val0
+float64 val1
+float64 val2

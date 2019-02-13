@@ -62,22 +62,56 @@ class Slave:
             rospy.Subscriber('/sync_flag', Int32, self.flagCB)
             for s in self.incoming_neighbors.keys():
                 rospy.Subscriber('/'+s+'/edge', TwoScalarMsg, self.neighborCB)
-            self.val_msg=TwoScalarMsg()
-            self.val_msg.id=str(self.ident)
-            # self.val_msg.val1=self.ident
-            print self.ident
+            self.check_list=[0]
+            self.val_list={}
+            self.val_list[0]=TwoScalarMsg()
+            self.val_list[0].val0=0
             if self.ident==1:
-              self.val_msg.val1=float(val[0]-self.gu)
+              self.val_list[0].val1=float(val[0]-self.gu)
             else:
-              self.val_msg.val1=float(-self.gu)
-            self.val_msg.val2=float(self.go-self.gu)
-            print self.val_msg
+              self.val_list[0].val1=float(-self.gu)
+            self.val_list[0].val2=float(self.go-self.gu)
+            self.val_list[0].id=str(self.ident)
+
+            # self.val_msg=TwoScalarMsg()
+            # self.val_msg.id=str(self.ident)
+            # self.val_msg.val1=self.ident
+            # print self.ident
+            # if self.ident==1:
+            #   self.val_msg.val1=float(val[0]-self.gu)
+            # else:
+            #   self.val_msg.val1=float(-self.gu)
+            # self.val_msg.val2=float(self.go-self.gu)
+            # self.val_msg_to_send=None
+            # self.val_msg_last=TwoScalarMsg()
+            # self.val_msg_last=self.copy_val_msg(self.val_msg_last,self.val_msg)
+            self.update_flag=False
+            # print self.val_msg
+
+        def copy_val_msg(self,v1,v2):
+          v1.val0=v2.val0
+          v1.val1=v2.val1
+          v1.val2=v2.val2
+          v1.id=v2.id
+          return v1
 
         def flagCB(self,msg):
             # print "Agent",self.ident,"receiving round flag"
+            if msg.data in self.check_list:
+              return
+            self.check_list.append(msg.data)
+            self.val_list[msg.data]=TwoScalarMsg()
+            self.val_list[msg.data].val0=msg.data
+            self.val_list[msg.data].id=str(self.ident)
+            if len(self.val_list)>2:
+              del self.val_list[self.check_list[0]]
+              del self.check_list[0]
+            print "Starting new", msg.data, self.ident
             for v in self.incoming_neighbors.values():
               v[0]=False
             self.check_sum=msg.data
+            # self.val_msg.val0=self.check_sum
+            self.update_flag=True
             # print self.check_sum
             # val_msg=TwoScalarMsg()
             # val_msg.id=self.ident
@@ -86,37 +120,53 @@ class Slave:
             Starting of a round.  Do some calculations, set val_msg and then send out to neighbors
             '''
             # print "Agent",self.ident,"sending msg to neighbor"
-            self.outgoing_pub.publish(self.val_msg)
+            # print self.val_msg
+            # print self.val_msg
+            self.pub()
+
+        def pub(self):
+          if len(self.val_list)<1:
+            return
+          # print self.val_msg
+          print self.val_list[self.check_list[0]]
+          self.outgoing_pub.publish(self.val_list[self.check_list[0]])
+            # self.send_ack()
+            # self.val_msg_last=self.copy_val_msg(self.val_msg_last,self.val_msg)
 
 
         def neighborCB(self,msg):
             # print "Agent",self.ident,"received msg",msg
             try:
                 self.incoming_neighbors[msg.id][0]=True
+                self.incoming_neighbors[msg.id][1].val0=msg.val0
                 self.incoming_neighbors[msg.id][1].val1=msg.val1
                 self.incoming_neighbors[msg.id][1].val2=msg.val2
             except Exception,e: print str(e)
             if self.check_all_sent_from_neighbors():
+                # pass
                 self.send_ack()
 
         def check_all_sent_from_neighbors(self):
+            if self.update_flag==False:
+              return False
             for k,v in self.incoming_neighbors.items():
                 # print k,v
-                if v[0] ==False:
+                if v[0] == False or v[1].val0 != self.check_list[0]:
                     return False
+            self.update_flag=False
 
             z_sum=0.0
             y_sum=0.0
             for k,yz in self.incoming_neighbors.items():
-                print k,yz
+                # print k,yz
                 y_sum+=yz[1].val1
                 z_sum+=yz[1].val2
-            y=1./3.*(self.val_msg.val1+y_sum)
-            z=1./3.*(self.val_msg.val2+z_sum)
+            y=1./3.*(self.val_list[self.check_list[0]].val1+y_sum)
+            z=1./3.*(self.val_list[self.check_list[0]].val2+z_sum)
             # time.time(1)
 
-            self.val_msg.val1=y
-            self.val_msg.val2=z
+            self.val_list[self.check_list[1]].val1=y
+            self.val_list[self.check_list[1]].val2=z
 
             # self.yz_msg=Quaternion()
             # self.yz_msg.y=y
@@ -128,6 +178,7 @@ class Slave:
             '''
             All values received from neighbors.  some computation probably goes here and then an acknowledgement is sent to the synchronizer.
             '''
+            print "Updated val", self.ident
             return True
 
         def send_ack(self):
@@ -137,11 +188,15 @@ class Slave:
             ack_response.id=str(self.ident)
             ack_response.check_sum=self.check_sum
             # print "Agent",self.ident,"sending ack"
+            if self.check_sum==None:
+              return
+            # print ack_response,'ACK', type(ack_response.id)
             self.ack_publisher.publish(ack_response)
 
         def run(self):
             while not rospy.is_shutdown():
-                time.sleep(1)
+                self.pub()
+                time.sleep(.01)
 
 def main(args):
 	manager=Slave()
