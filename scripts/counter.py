@@ -14,5 +14,5 @@ for a in range(54):
   l=0
   for v in val:
     l+=v[a]
-  print a,l
+  print a+1,l
 
