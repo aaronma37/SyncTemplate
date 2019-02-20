@@ -17,6 +17,8 @@
 		<param name="~ident" type="string" value="1"/>
 		<param name="~incoming1" type="string" value="2"/>
 		<param name="~incoming2" type="string" value="9"/>
+		<param name="~2incoming1" type="string" value="3"/>
+		<param name="~2incoming2" type="string" value="8"/>
 	</node>
 </group>
 

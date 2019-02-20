@@ -121,6 +121,28 @@ class Slave:
           print self.val_list[self.check_list[0]],self.check_list
           self.outgoing_pub.publish(self.val_list[self.check_list[0]])
 
+        def update(self):
+          z_sum=0.0
+          y_sum=0.0
+          for k,yz in self.incoming_neighbors.items():
+              y_sum+=yz[self.check_list[0]][1]
+              z_sum+=yz[self.check_list[0]][2]
+          y=1./3.*(self.val_list[self.check_list[0]].val1+y_sum)
+          z=1./3.*(self.val_list[self.check_list[0]].val2+z_sum)
+          self.val_list[self.check_list[1]].val1=y
+          self.val_list[self.check_list[1]].val2=z
+
+        def update_2(self):
+          z_sum=0.0
+          y_sum=0.0
+          for k,yz in self.incoming_neighbors.items():
+              y_sum+=yz[self.check_list[0]][1]
+              z_sum+=yz[self.check_list[0]][2]
+          y=1./3.*(self.val_list[self.check_list[0]].val1+y_sum)
+          z=1./3.*(self.val_list[self.check_list[0]].val2+z_sum)
+          self.val_list[self.check_list[1]].val1=y
+          self.val_list[self.check_list[1]].val2=z
+
         def neighborCB(self,msg):
             if msg.val0 != self.check_list[0]:
               return
@@ -146,15 +168,7 @@ class Slave:
                 if v[self.check_list[0]]==False:
                   del v[self.check_list[0]]
                   return
-            z_sum=0.0
-            y_sum=0.0
-            for k,yz in self.incoming_neighbors.items():
-                y_sum+=yz[self.check_list[0]][1]
-                z_sum+=yz[self.check_list[0]][2]
-            y=1./3.*(self.val_list[self.check_list[0]].val1+y_sum)
-            z=1./3.*(self.val_list[self.check_list[0]].val2+z_sum)
-            self.val_list[self.check_list[1]].val1=y
-            self.val_list[self.check_list[1]].val2=z
+            self.update()
             '''
             All values received from neighbors.  some computation probably goes here and then an acknowledgement is sent to the synchronizer.
             '''
