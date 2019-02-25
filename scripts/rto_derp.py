@@ -7,7 +7,6 @@ import sys
 from std_msgs.msg import Float32
 from std_msgs.msg import Empty as EmptyMsg
 from std_msgs.msg import Int32
-from SyncTemplate.msg import TwoScalarMsg
 from SyncTemplate.msg import rto_derp_msg as Msg
 from SyncTemplate.msg import AckMsg
 import copy
@@ -16,6 +15,15 @@ rospy.init_node('Slave', anonymous=True)
 
 val=[]
 line_iter=0
+m=9.0
+
+with open('/home/aaron/catkin_ws/src/SyncTemplate/scaled_interp_Pref.csv') as csv_file:
+  csv_reader = csv.reader(csv_file, delimiter=',')
+  line_count = 0
+  for row in csv_reader:
+      val.append(float(row[0]))
+      line_count+=1
+  max_iter=line_count
 
 class Slave:
 	def __init__(self):
@@ -26,14 +34,14 @@ class Slave:
                 exit()
             self.f=open('/home/aaron/catkin_ws/src/SyncTemplate/scripts/'+str(self.ident)+".csv","w")
 
-            if self.ident==1:
-                with open('/home/aaron/catkin_ws/src/SyncTemplate/scaled_interp_Pref.csv') as csv_file:
-                    csv_reader = csv.reader(csv_file, delimiter=',')
-                    line_count = 0
-                    for row in csv_reader:
-                        val.append(float(row[0]))
-                        line_count+=1
-                    max_iter=line_count
+            # if self.ident==1:
+            #     with open('/home/aaron/catkin_ws/src/SyncTemplate/scaled_interp_Pref.csv') as csv_file:
+            #         csv_reader = csv.reader(csv_file, delimiter=',')
+            #         line_count = 0
+            #         for row in csv_reader:
+            #             val.append(float(row[0]))
+            #             line_count+=1
+            #         max_iter=line_count
 
             with open('/home/aaron/catkin_ws/src/SyncTemplate/gu.csv') as csv_file:
               csv_reader = csv.reader(csv_file, delimiter=',')
@@ -45,7 +53,7 @@ class Slave:
                 for row in csv_reader:
                     self.go=(float(row[self.ident-1]))
 
-            self.outgoing_pub =rospy.Publisher('edge', TwoScalarMsg, queue_size=1)
+            self.outgoing_pub =rospy.Publisher('edge', Msg, queue_size=1)
             self.error_pub =rospy.Publisher('/error', EmptyMsg, queue_size=1)
 
             self.incoming_neighbors={}
@@ -70,21 +78,25 @@ class Slave:
             rospy.Subscriber('/outer_loop', Int32, self.outerLoopCB)
             self.sub_list=[]
             for s in self.incoming_neighbors.keys():
-                self.sub_list.append(rospy.Subscriber('/'+s+'/edge', TwoScalarMsg, self.neighborCB))
+                self.sub_list.append(rospy.Subscriber('/'+s+'/edge', Msg, self.neighborCB))
+            for s in self.incoming_neighbors_2.keys():
+                self.sub_list.append(rospy.Subscriber('/'+s+'/edge', Msg, self.neighborCB))
             self.iteration2=0
             self.check_list=[0]
             self.validated={}
 
             self.val_list={}
-            self.val_list[0]=Msg()
-            self.val_list[0].val0=0
-            if self.ident==1:
-              self.val_list[0].P=float(val[0]-self.gu)
-            else:
-              self.val_list[0].P=float(-self.gu)
-            self.val_list[0].y=float(self.go-self.gu)
-            self.val_list[0].id=str(self.ident)
+            self.reset_vals()
             self.update_flag=False
+            self.Pr=val[0]
+
+        def reset_vals(self):
+          self.val_list[0]=Msg()
+          self.val_list[0].val0=0
+          self.val_list[0].P=0.0
+          self.val_list[0].y=0.0
+          self.val_list[0].lam=0.0
+          self.val_list[0].id=str(self.ident)
 
         def copy_val_msg(self,v1,v2):
           v1.val0=v2.val0
@@ -94,7 +106,10 @@ class Slave:
           return v1
 
         def outerLoopCB(self,msg):
-            self.f.write(str(self.gu+(self.val_list[self.check_list[0]].val1/self.val_list[self.check_list[0]].val2)*(self.go-self.gu))+"\n")
+            if self.val_list[self.check_list[0]].y==0:
+              self.f.write(str(self.gu)+"\n")
+            else:
+              self.f.write(str(self.gu+(self.val_list[self.check_list[0]].P/self.val_list[self.check_list[0]].y)*(self.go-self.gu))+"\n")
 
             self.iteration2=msg.data
             self.update_y()
@@ -109,7 +124,7 @@ class Slave:
                 return
             self.check_sum=msg.data
             self.check_list.append(msg.data)
-            self.val_list[msg.data]=TwoScalarMsg()
+            self.val_list[msg.data]=Msg()
             self.val_list[msg.data].val0=msg.data
             self.val_list[msg.data].id=str(self.ident)
             if len(self.val_list)>2:
@@ -129,60 +144,79 @@ class Slave:
           print self.val_list[self.check_list[0]],self.check_list
           self.outgoing_pub.publish(self.val_list[self.check_list[0]])
 
-        def update(self):
-          z_sum=0.0
-          y_sum=0.0
-          for k,yz in self.incoming_neighbors.items():
-              y_sum+=yz[self.check_list[0]][1]
-              z_sum+=yz[self.check_list[0]][2]
-          y=1./3.*(self.val_list[self.check_list[0]].val1+y_sum)
-          z=1./3.*(self.val_list[self.check_list[0]].val2+z_sum)
-          self.val_list[self.check_list[1]].val1=y
-          self.val_list[self.check_list[1]].val2=z
+        # def update(self):
+        #   z_sum=0.0
+        #   y_sum=0.0
+        #   for k,yz in self.incoming_neighbors.items():
+        #       y_sum+=yz[self.check_list[0]][1]
+        #       z_sum+=yz[self.check_list[0]][2]
+        #   y=1./3.*(self.val_list[self.check_list[0]].val1+y_sum)
+        #   z=1./3.*(self.val_list[self.check_list[0]].val2+z_sum)
+        #   self.val_list[self.check_list[1]].val1=y
+        #   self.val_list[self.check_list[1]].val2=z
 
-        def update_2(self):
+        def update(self):
           P0=self.val_list[self.check_list[0]].P
           y0=self.val_list[self.check_list[0]].y
           lam0=self.val_list[self.check_list[0]].lam
-          mpr=0
-          my=0
-          m2y=0
-          m3y=0
-          mlam=0
+          sum_P=0
+          sum_y=0
+          sum2_y=0
+          sum_Pr=0
+          sum_lam=0
 
           for k,neighbor in self.incoming_neighbors.items():
-            mpr+=neighbor['y']
-            my+=neighbor['lambda']+neighbor['P']
-            m3y+=Pr/m
-            mlam+=neighbor['y']
+            sum_P+=neighbor[self.check_list[0]]['y']
+            sum_y+=neighbor[self.check_list[0]]['lambda']+neighbor[self.check_list[0]]['P']
+            sum_Pr+=self.Pr/m
+            sum_lam+=neighbor[self.check_list[0]]['y']
 
-          for k,neighbor in self.incoming_neighbors2.items():
-            m2y+=neighbor['y']
+          for k,neighbor in self.incoming_neighbors_2.items():
+            sum2_y+=neighbor[self.check_list[0]]['y']
 
-          self.val_list[self.check_list[1]].P=P0-.01*(2*P0+lam0+P0+mpr-Pr/m)
-          self.val_list[self.check_list[1]].y=y0-.01*(my+m2y-m3y)
-          self.val_list[self.check_list[1]].lam=lam0-.01*(P0+mlam-Pr/m)
+          self.val_list[self.check_list[1]].P=P0-.1*(2.0*P0+lam0+P0+sum_P-self.Pr/m)
+          self.val_list[self.check_list[1]].y=y0-.1*(sum_y+sum2_y-sum_Pr)
+          self.val_list[self.check_list[1]].lam=lam0-.1*(P0+sum_lam-self.Pr/m)
 
         def neighborCB(self,msg):
             if msg.val0 != self.check_list[0]:
               return
-            if self.incoming_neighbors[msg.id].get(msg.val0) is None:
-              self.incoming_neighbors[msg.id][msg.val0]={}
-              self.incoming_neighbors[msg.id][msg.val0]['y']=msg.y
-              self.incoming_neighbors[msg.id][msg.val0]['lambda']=msg.lam
-              self.incoming_neighbors[msg.id][msg.val0]['P']=msg.P
-            elif self.incoming_neighbors[msg.id][msg.val0] is False:
-              self.incoming_neighbors[msg.id][msg.val0]={}
-              self.incoming_neighbors[msg.id][msg.val0]['y']=msg.y
-              self.incoming_neighbors[msg.id][msg.val0]['lambda']=msg.lam
-              self.incoming_neighbors[msg.id][msg.val0]['P']=msg.P
-              return
-            else:
-              self.incoming_neighbors[msg.id][msg.val0]=None
-              return
-            if len(self.val_list)<2:
-              raise Exception('I know Python!')
-              return
+            if msg.id in self.incoming_neighbors.keys():
+              if self.incoming_neighbors[msg.id].get(msg.val0) is None:
+                self.incoming_neighbors[msg.id][msg.val0]={}
+                self.incoming_neighbors[msg.id][msg.val0]['y']=msg.y
+                self.incoming_neighbors[msg.id][msg.val0]['lambda']=msg.lam
+                self.incoming_neighbors[msg.id][msg.val0]['P']=msg.P
+              elif self.incoming_neighbors[msg.id][msg.val0] is False:
+                self.incoming_neighbors[msg.id][msg.val0]={}
+                self.incoming_neighbors[msg.id][msg.val0]['y']=msg.y
+                self.incoming_neighbors[msg.id][msg.val0]['lambda']=msg.lam
+                self.incoming_neighbors[msg.id][msg.val0]['P']=msg.P
+                return
+              else:
+                self.incoming_neighbors[msg.id][msg.val0]=None
+                return
+              if len(self.val_list)<2:
+                raise Exception('ERROR1')
+                return
+            elif msg.id in self.incoming_neighbors_2.keys():
+              if self.incoming_neighbors_2[msg.id].get(msg.val0) is None:
+                self.incoming_neighbors_2[msg.id][msg.val0]={}
+                self.incoming_neighbors_2[msg.id][msg.val0]['y']=msg.y
+                self.incoming_neighbors_2[msg.id][msg.val0]['lambda']=msg.lam
+                self.incoming_neighbors_2[msg.id][msg.val0]['P']=msg.P
+              elif self.incoming_neighbors_2[msg.id][msg.val0] is False:
+                self.incoming_neighbors_2[msg.id][msg.val0]={}
+                self.incoming_neighbors_2[msg.id][msg.val0]['y']=msg.y
+                self.incoming_neighbors_2[msg.id][msg.val0]['lambda']=msg.lam
+                self.incoming_neighbors_2[msg.id][msg.val0]['P']=msg.P
+                return
+              else:
+                self.incoming_neighbors_2[msg.id][msg.val0]=None
+                return
+              if len(self.val_list)<2:
+                raise Exception('ERROR1')
+                return
 
             for k,v in self.incoming_neighbors.items():
                 if v.get(self.check_list[0]) is None:
@@ -190,6 +224,14 @@ class Slave:
                 if v[self.check_list[0]]==False:
                   del v[self.check_list[0]]
                   return
+
+            for k,v in self.incoming_neighbors_2.items():
+                if v.get(self.check_list[0]) is None:
+                  return
+                if v[self.check_list[0]]==False:
+                  del v[self.check_list[0]]
+                  return
+
             self.update()
             '''
             All values received from neighbors.  some computation probably goes here and then an acknowledgement is sent to the synchronizer.
@@ -217,14 +259,18 @@ class Slave:
                   pass
           self.check_list=[0]
           self.val_list={}
-          self.val_list[0]=TwoScalarMsg()
-          self.val_list[0].val0=0
-          if self.ident==1:
-            self.val_list[0].val1=float(val[self.iteration2]-self.gu)
-          else:
-            self.val_list[0].val1=float(-self.gu)
-          self.val_list[0].val2=float(self.go-self.gu)
-          self.val_list[0].id=str(self.ident)
+          self.reset_vals()
+          # self.val_list[0]=Msg()
+          # self.val_list[0].val0=0
+          # if self.ident==1:
+          #   self.val_list[0].P=float(val[self.iteration2]-self.gu)
+          # else:
+          #   self.val_list[0].P=float(-self.gu)
+          # self.val_list[0].y=float(self.go-self.gu)
+          # self.val_list[0].lam=0.0
+          # self.val_list[0].id=str(self.ident)
+          self.Pr=val[self.iteration2]
+          print self.Pr,"NEW_PR"
 
         def run(self):
             while not rospy.is_shutdown():
