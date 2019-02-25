@@ -8,6 +8,7 @@ from std_msgs.msg import Float32
 from std_msgs.msg import Empty as EmptyMsg
 from std_msgs.msg import Int32
 from SyncTemplate.msg import TwoScalarMsg
+from SyncTemplate.msg import rto_derp_msg as Msg
 from SyncTemplate.msg import AckMsg
 import copy
 
@@ -48,11 +49,18 @@ class Slave:
             self.error_pub =rospy.Publisher('/error', EmptyMsg, queue_size=1)
 
             self.incoming_neighbors={}
+            self.incoming_neighbors_2={}
             for i in range(100):
                 try:
                     s=rospy.get_param("~incoming"+str(i))
                     self.incoming_neighbors[s] = {}
                     print "Agent", self.ident, "now listening to", s
+                except:
+                    pass
+                try:
+                    s=rospy.get_param("~2incoming"+str(i))
+                    self.incoming_neighbors_2[s] = {}
+                    print "Agent", self.ident, "now 2 hop listening to", s
                 except:
                     pass
 
@@ -68,13 +76,13 @@ class Slave:
             self.validated={}
 
             self.val_list={}
-            self.val_list[0]=TwoScalarMsg()
+            self.val_list[0]=Msg()
             self.val_list[0].val0=0
             if self.ident==1:
-              self.val_list[0].val1=float(val[0]-self.gu)
+              self.val_list[0].P=float(val[0]-self.gu)
             else:
-              self.val_list[0].val1=float(-self.gu)
-            self.val_list[0].val2=float(self.go-self.gu)
+              self.val_list[0].P=float(-self.gu)
+            self.val_list[0].y=float(self.go-self.gu)
             self.val_list[0].id=str(self.ident)
             self.update_flag=False
 
@@ -133,27 +141,41 @@ class Slave:
           self.val_list[self.check_list[1]].val2=z
 
         def update_2(self):
-          z_sum=0.0
-          y_sum=0.0
-          for k,yz in self.incoming_neighbors.items():
-              y_sum+=yz[self.check_list[0]][1]
-              z_sum+=yz[self.check_list[0]][2]
-          y=1./3.*(self.val_list[self.check_list[0]].val1+y_sum)
-          z=1./3.*(self.val_list[self.check_list[0]].val2+z_sum)
-          self.val_list[self.check_list[1]].val1=y
-          self.val_list[self.check_list[1]].val2=z
+          P0=self.val_list[self.check_list[0]].P
+          y0=self.val_list[self.check_list[0]].y
+          lam0=self.val_list[self.check_list[0]].lam
+          mpr=0
+          my=0
+          m2y=0
+          m3y=0
+          mlam=0
+
+          for k,neighbor in self.incoming_neighbors.items():
+            mpr+=neighbor['y']
+            my+=neighbor['lambda']+neighbor['P']
+            m3y+=Pr/m
+            mlam+=neighbor['y']
+
+          for k,neighbor in self.incoming_neighbors2.items():
+            m2y+=neighbor['y']
+
+          self.val_list[self.check_list[1]].P=P0-.01*(2*P0+lam0+P0+mpr-Pr/m)
+          self.val_list[self.check_list[1]].y=y0-.01*(my+m2y-m3y)
+          self.val_list[self.check_list[1]].lam=lam0-.01*(P0+mlam-Pr/m)
 
         def neighborCB(self,msg):
             if msg.val0 != self.check_list[0]:
               return
             if self.incoming_neighbors[msg.id].get(msg.val0) is None:
               self.incoming_neighbors[msg.id][msg.val0]={}
-              self.incoming_neighbors[msg.id][msg.val0][1]=msg.val1
-              self.incoming_neighbors[msg.id][msg.val0][2]=msg.val2
+              self.incoming_neighbors[msg.id][msg.val0]['y']=msg.y
+              self.incoming_neighbors[msg.id][msg.val0]['lambda']=msg.lam
+              self.incoming_neighbors[msg.id][msg.val0]['P']=msg.P
             elif self.incoming_neighbors[msg.id][msg.val0] is False:
               self.incoming_neighbors[msg.id][msg.val0]={}
-              self.incoming_neighbors[msg.id][msg.val0][1]=msg.val1
-              self.incoming_neighbors[msg.id][msg.val0][2]=msg.val2
+              self.incoming_neighbors[msg.id][msg.val0]['y']=msg.y
+              self.incoming_neighbors[msg.id][msg.val0]['lambda']=msg.lam
+              self.incoming_neighbors[msg.id][msg.val0]['P']=msg.P
               return
             else:
               self.incoming_neighbors[msg.id][msg.val0]=None

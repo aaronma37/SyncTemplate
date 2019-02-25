@@ -18,6 +18,7 @@ add_message_files(
 	FILES
 	TwoScalarMsg.msg
 	AckMsg.msg
+	rto_derp_msg.msg
 	)
 
 
