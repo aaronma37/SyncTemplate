@@ -17,6 +17,8 @@ val=[]
 line_iter=0
 m=9.0
 
+STEP_SIZE=.5
+
 with open('/home/aaron/catkin_ws/src/SyncTemplate/scaled_interp_Pref.csv') as csv_file:
   csv_reader = csv.reader(csv_file, delimiter=',')
   line_count = 0
@@ -24,6 +26,13 @@ with open('/home/aaron/catkin_ws/src/SyncTemplate/scaled_interp_Pref.csv') as cs
       val.append(float(row[0]))
       line_count+=1
   max_iter=line_count
+
+def cap(val,low,high):
+  if val < low:
+    return low
+  if val>high:
+    return high
+  return val
 
 class Slave:
 	def __init__(self):
@@ -106,10 +115,8 @@ class Slave:
           return v1
 
         def outerLoopCB(self,msg):
-            if self.val_list[self.check_list[0]].y==0:
-              self.f.write(str(self.gu)+"\n")
-            else:
-              self.f.write(str(self.gu+(self.val_list[self.check_list[0]].P/self.val_list[self.check_list[0]].y)*(self.go-self.gu))+"\n")
+            self.f.write(str(self.val_list[self.check_list[0]].P)+"\n")
+            # self.f.write(str(self.gu+(self.val_list[self.check_list[0]].P/self.val_list[self.check_list[0]].y)*(self.go-self.gu))+"\n")
 
             self.iteration2=msg.data
             self.update_y()
@@ -159,24 +166,27 @@ class Slave:
           P0=self.val_list[self.check_list[0]].P
           y0=self.val_list[self.check_list[0]].y
           lam0=self.val_list[self.check_list[0]].lam
-          sum_P=0
-          sum_y=0
-          sum2_y=0
-          sum_Pr=0
-          sum_lam=0
+          sum_P=2*y0
+          sum_y=2*(lam0+P0)
+          sum2_y=6*y0
+          sum_Pr=2*self.Pr/m
+          sum_lam=2*y0
 
           for k,neighbor in self.incoming_neighbors.items():
-            sum_P+=neighbor[self.check_list[0]]['y']
-            sum_y+=neighbor[self.check_list[0]]['lambda']+neighbor[self.check_list[0]]['P']
-            sum_Pr+=self.Pr/m
-            sum_lam+=neighbor[self.check_list[0]]['y']
+            sum_P-=neighbor[self.check_list[0]]['y']
+            sum_y-=neighbor[self.check_list[0]]['lambda']+neighbor[self.check_list[0]]['P']
+            sum_Pr-=self.Pr/m
+            sum_lam-=neighbor[self.check_list[0]]['y']
+            sum2_y-=4*neighbor[self.check_list[0]]['y']
 
           for k,neighbor in self.incoming_neighbors_2.items():
-            sum2_y+=neighbor[self.check_list[0]]['y']
+            sum2_y-=neighbor[self.check_list[0]]['y']
 
-          self.val_list[self.check_list[1]].P=P0-.1*(2.0*P0+lam0+P0+sum_P-self.Pr/m)
-          self.val_list[self.check_list[1]].y=y0-.1*(sum_y+sum2_y-sum_Pr)
-          self.val_list[self.check_list[1]].lam=lam0-.1*(P0+sum_lam-self.Pr/m)
+          self.val_list[self.check_list[1]].P=P0-STEP_SIZE*(2.0*P0+lam0+P0+sum_P-self.Pr/m)
+          self.val_list[self.check_list[1]].y=y0-STEP_SIZE*(sum_y+sum2_y-sum_Pr)
+          self.val_list[self.check_list[1]].lam=lam0+STEP_SIZE*(P0+sum_lam-self.Pr/m)
+          self.val_list[self.check_list[1]].P=cap(self.val_list[self.check_list[1]].P,self.gu,self.go)
+
 
         def neighborCB(self,msg):
             if msg.val0 != self.check_list[0]:

@@ -84,7 +84,7 @@ class Master:
         def run(self):
             now=time.time()
             while not rospy.is_shutdown():
-              if time.time()-now>4:
+              if time.time()-now>3:
                 self.outer_iteration.data+=1
                 time.sleep(.25)
                 now=time.time()
