@@ -4,14 +4,16 @@ import time
 import rospy
 import sys
 import random
+from copy import deepcopy
 
 from std_msgs.msg import Float32
 from std_msgs.msg import Int32
 from std_msgs.msg import Empty as EmptyMsg
-from SyncTemplate.msg import AckMsg
+from dana.msg import all_info as AllInfoMsg
+from dana.msg import dana_msg as DanaMsg
 
 rospy.init_node('Master', anonymous=True)
-sync_flag_pub =rospy.Publisher('/sync_flag', Int32, queue_size=100)
+all_info_pub=rospy.Publisher('/all_info', AllInfoMsg, queue_size=1)
 outer_loop_pub =rospy.Publisher('/outer_loop', Int32, queue_size=1)
 
 class Master:
@@ -26,72 +28,89 @@ class Master:
                     pass
 
             for s in self.slaves.keys():
-                rospy.Subscriber(s+'/ack', AckMsg, self.sentCB)
-            self.error_sub = rospy.Subscriber('/error',EmptyMsg,self.errorCB)
-            time.sleep(.5)
-            self.check_sum=Int32()
-            self.check_sum.data=0
-            self.send_flag()
+              rospy.Subscriber(s+'/ack', DanaMsg, self.sentCB)
+            # rospy.Subscriber('/ack', DanaMsg, self.sentCB)
+
+            self.all_info_msg=AllInfoMsg()
+            self.reset_all_info()
+            time.sleep(2)
+            # self.pub()
+            self.reset_all_info()
+            self.iterate()
             self.outer_iteration=Int32()
             self.outer_iteration.data=0
 
-        def errorCB(self,msg):
-            self.outer_loop_inc()
-
-
         def sentCB(self,msg):
-            try:
-                # print "here"
-                if msg.check_sum==self.check_sum.data:
-                  self.slaves[msg.id]=True
-            except Exception,e: print str(e)
-            if self.check_all_sent():
-                self.send_flag()
+            # print('msg from', msg.id,msg.time,self.all_info_msg.time)
+            # print(msg)
+            if msg.time==self.all_info_msg.time:
+              self.all_info_msg.P[msg.id]=msg.P
+              self.all_info_msg.y[msg.id]=msg.y
+              self.all_info_msg.lamu[msg.id]=msg.lamu
+              self.all_info_msg.lamo[msg.id]=msg.lamo
+              self.all_info_msg.recv[msg.id]=True
+              # print(self.all_info_msg)
+              try:
+                self.slaves[msg.id]=True
+              except Exception,e: print str(e)
+              # print(msg)
+              # print(self.all_info_msg,'iterate')
+            else:
+              print("wrong time",msg.id, msg.P, msg.time, self.all_info_msg.time)
 
         def check_all_sent(self):
-            # for k,v in self.slaves.items():
-            #   print k,v
-            for v in self.slaves.values():
-                if v == False:
+            for v in self.all_info_msg.recv:
+                # print(v)
+                if v is False:
                     return False
-
+            print(self.all_info_msg.recv)
             return True
 
-        def send_flag(self):
-            # time.sleep(1)
+        def reset_all_info(self):
+            self.all_info_msg.time+=1
+            self.all_info_msg.P=[0.0]*9
+            self.all_info_msg.y=[0.0]*9
+            self.all_info_msg.lamo=[0.0]*9
+            self.all_info_msg.lamu=[0.0]*9
+            self.all_info_msg.recv=[False]*9
+
+        def verify(self,msg):
+            pairs=[[1,8],[2,7],[3,6]]
+            for p in pairs:
+              if msg.P[p[0]] != msg.P[p[1]]:
+                print msg.P[p[0]],msg.P[p[1]],p
+
+        def iterate(self):
+            print(self.all_info_msg,'iterate',sum(self.all_info_msg.P))
+            self.verify(self.all_info_msg)
+            # time.sleep(.01)
+            temp_msg=deepcopy(self.all_info_msg)
+            self.reset_all_info()
+            self.pub(temp_msg)
             for k,v in self.slaves.items():
                 self.slaves[k]=False
 
-            # for k,v in self.slaves.items():
-            #   print k,v,'after'
-            # self.check_sum=Int32()
-            # self.check_sum.data=random.randint(0,10000)
-            self.check_sum.data+=1
-            # self.pub()
-
-        def pub(self):
-            sync_flag_pub.publish(self.check_sum)
+        def pub(self,msg):
+            all_info_pub.publish(msg)
 
         def outer_loop_inc(self):
-          self.check_sum.data=1
+          self.all_info_msg.time=0
           outer_loop_pub.publish(self.outer_iteration)
-          for k,v in self.slaves.items():
-              self.slaves[k]=False
-          time.sleep(2)
-          for k,v in self.slaves.items():
-              self.slaves[k]=False
+          self.iterate()
+          # self.pub(temp_msg)
+          # self.reset_all_info()
 
         def run(self):
             now=time.time()
             while not rospy.is_shutdown():
-              if time.time()-now>3:
+              if time.time()-now>2:
                 self.outer_iteration.data+=1
                 time.sleep(.25)
                 now=time.time()
                 self.outer_loop_inc()
-
-              self.pub()
               time.sleep(.001)
+              if self.check_all_sent():
+                  self.iterate()
 
 def main(args):
 	manager=Master()

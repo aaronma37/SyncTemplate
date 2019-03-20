@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(SyncTemplate)
+project(dana)
 
 
 find_package(catkin REQUIRED COMPONENTS
@@ -19,6 +19,8 @@ add_message_files(
 	TwoScalarMsg.msg
 	AckMsg.msg
 	rto_derp_msg.msg
+	dana_msg.msg
+	all_info.msg
 	)
 
 
