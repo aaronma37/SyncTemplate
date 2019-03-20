@@ -20,7 +20,7 @@ val=[]
 
 STEP_SIZE=.1
 
-with open('/home/aaron/catkin_ws/src/SyncTemplate/scaled_interp_Pref.csv') as csv_file:
+with open('/home/aaron/catkin_ws/src/dana/scaled_interp_Pref.csv') as csv_file:
   csv_reader = csv.reader(csv_file, delimiter=',')
   line_count = 0
   for row in csv_reader:
@@ -46,14 +46,14 @@ class Slave:
                 exit()
             self.f=open('/home/aaron/catkin_ws/src/dana/scripts/'+str(self.ident)+".csv","w")
 
-            with open('/home/aaron/catkin_ws/src/SyncTemplate/gu.csv') as csv_file:
+            with open('/home/aaron/catkin_ws/src/dana/gu.csv') as csv_file:
               csv_reader = csv.reader(csv_file, delimiter=',')
               for row in csv_reader:
                  self.gu=(float(row[self.ident]))
 
 
             self.one_hop_neighbors=[]
-            with open('/home/aaron/catkin_ws/src/SyncTemplate/go.csv') as csv_file:
+            with open('/home/aaron/catkin_ws/src/dana/go.csv') as csv_file:
                 csv_reader = csv.reader(csv_file, delimiter=',')
                 for row in csv_reader:
                     self.go=(float(row[self.ident]))
